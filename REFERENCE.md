@@ -21,7 +21,7 @@
 * [`podman::container`](#podman--container): manage podman container and register as a systemd service
 * [`podman::image`](#podman--image): pull or remove container images
 * [`podman::network`](#podman--network): Create a podman network with defined flags
-* [`podman::pod`](#podman--pod): Create a podman pod with defined flags
+* [`podman::pod`](#podman--pod): Create a podman pod with defined flags and containers
 * [`podman::quadlet`](#podman--quadlet): manage podman quadlets
 * [`podman::rootless`](#podman--rootless): Enable a given user to run rootless podman containers as a systemd user service.
 * [`podman::secret`](#podman--secret): Manage a podman secret. Create and remove secrets, it cannot replace.
@@ -349,6 +349,7 @@ The following parameters are available in the `podman::container` defined type:
 
 * [`image`](#-podman--container--image)
 * [`user`](#-podman--container--user)
+* [`pod`](#-podman--container--pod)
 * [`flags`](#-podman--container--flags)
 * [`service_flags`](#-podman--container--service_flags)
 * [`command`](#-podman--container--command)
@@ -373,6 +374,15 @@ Data type: `Optional[String]`
 Optional user for running rootless containers.  For rootless containers,
 the user must also be defined as a puppet resource that includes at least
 'uid', 'gid', and 'home' attributes.
+
+Default value: `undef`
+
+##### <a name="-podman--container--pod"></a>`pod`
+
+Data type: `Optional[String]`
+
+This parameter is used by the podman::pod resource and should never be used
+directly.
 
 Default value: `undef`
 
@@ -426,7 +436,7 @@ Default value: `'present'`
 Data type: `Boolean`
 
 Status of the automatically generated systemd service for the container.
-Valid values are 'running' or 'stopped'.
+Valid values are 'running' or 'stopped'. This is ignored if pod is set.
 
 Default value: `true`
 
@@ -648,7 +658,9 @@ Default value: `undef`
 
 ### <a name="podman--pod"></a>`podman::pod`
 
-Create a podman pod with defined flags
+Create a podman pod with defined flags and containers
+
+* **Note** If the flags or container hashes change, the entire pod will be redeployed.
 
 #### Examples
 
@@ -657,8 +669,17 @@ Create a podman pod with defined flags
 ```puppet
 podman::pod { 'mypod':
   flags => {
-           label => 'use=test, app=wordpress',
-           }
+           label   => 'use=test, app=wordpress',
+           publish => '8443:443',
+  },
+  containers => {
+    wordpress => {
+      image => 'wordpress:php8.2-fpm-alpine',
+    },
+    haproxy => {
+      image => 'haproxy:latest',
+    },
+  },
 }
 ```
 
@@ -668,7 +689,10 @@ The following parameters are available in the `podman::pod` defined type:
 
 * [`ensure`](#-podman--pod--ensure)
 * [`flags`](#-podman--pod--flags)
+* [`service_flags`](#-podman--pod--service_flags)
 * [`user`](#-podman--pod--user)
+* [`enable`](#-podman--pod--enable)
+* [`containers`](#-podman--pod--containers)
 
 ##### <a name="-podman--pod--ensure"></a>`ensure`
 
@@ -688,6 +712,18 @@ pod name unless the 'name' flag is included in the hash of flags.
 
 Default value: `{}`
 
+##### <a name="-podman--pod--service_flags"></a>`service_flags`
+
+Data type: `Hash`
+
+When a pod is created, a systemd unit file for the pod and container services
+is generated using the 'podman generate systemd' command.  All flags for the
+command are supported using the 'service_flags" hash parameter, again using
+only the long form of the flag names. Note: Service flags on individual
+containers within a pod are not honored.
+
+Default value: `{}`
+
 ##### <a name="-podman--pod--user"></a>`user`
 
 Data type: `Optional[String]`
@@ -697,6 +733,24 @@ the user must also be defined as a Puppet resource and must include the
 'uid', 'gid', and 'home'
 
 Default value: `undef`
+
+##### <a name="-podman--pod--enable"></a>`enable`
+
+Data type: `Boolean`
+
+Start/enable the systemd service unit for the pod. Does not apply if no
+containers are declared for the pod because the systemd service unit will
+not be created without containers.
+
+Default value: `true`
+
+##### <a name="-podman--pod--containers"></a>`containers`
+
+Data type: `Hash`
+
+Hash of containers to add to the pod.
+
+Default value: `{}`
 
 ### <a name="podman--quadlet"></a>`podman::quadlet`
 
